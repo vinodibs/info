@@ -1,0 +1,69 @@
+
+# HOW TO SETUP MYSQL 5.7 MASTER  SLAVE REPLICATION  ON UBUNTU 16.04
+
+#Master IP : 192.168.31.217
+#Slave IP : 192.168.31.225
+
+# MASTER REPLICATION SETUP CONFIGURATION  
+
+sudo apt-get install mysql-server -y
+vim  /etc/mysql/mysql.conf.d/mysqld.cnf
+bind-address = 0.0.0.0  # Put here your Master IP Add of Mysql
+server-id = 1
+log_bin = /var/log/mysql/mysql-bin.log
+
+# Restart & Enable Mysql Service
+sudo systemctl restart mysql
+sudo systemctl enable mysql
+
+# Create a Replication User alongwith tables & full permission on master server
+
+mysql -uroot -p
+create database master_db;
+create table master_db.cats (name varchar(20));
+insert into master_db.cats values ('vinod');
+select * from master_db.cats;
+CREATE USER 'replica_user'@'%' IDENTIFIED BY 'replica_user';
+GRANT REPLICATION SLAVE ON *.* TO 'replica_user'@'%';
+FLUSH PRIVILEGES;
+EXIT
+
+# DUMP MYSQL DB
+mysqldump -uroot -p master_db --master-data > dump_master_db.sql
+
+#MASTER STATUS
+mysql -uroot -p
+mysql> SHOW MASTER STATUS;
++------------------+----------+--------------+------------------+
+| File             | Position | Binlog_Do_DB | Binlog_Ignore_DB |
++------------------+----------+--------------+------------------+
+| mysql-bin.000001 |      1383 |             |                  |
++------------------+----------+--------------+------------------+
+1 row in set (0.00 sec)
+
+# COPY MYSQL DB on SLAVE MACHINE 
+scp dump_master_db.sql vmuser@192.168.31.225:/tmp
+
+# SLAVE REPLICATION SETUP CONFIGURATION 
+sudo apt-get install mysql-server -y
+vim /etc/mysql/mysql.conf.d/mysqld.cnf
+bind-address = 0.0.0.0  # Put here your Master IP Add of Mysql
+server-id = 2
+log_bin = /var/log/mysql/mysql-bin.log
+
+#RESTART & ENABLE MYSQL SERVICE 
+sudo systemctl restart mysql
+sudo systemctl enable mysql
+
+# RESTORE MYSQL DUMP 
+mysql -u root -p master_db < /tmp/dump_master_db.sql
+
+# ENABLE MYSQL REPLICATION BETWEEN MASTER & SLAVE 
+mysql -uroot -p 
+STOP SLAVE;
+CHANGE MASTER TO MASTER_HOST='192.168.31.217',MASTER_USER='replica_user', MASTER_PASSWORD='replica_user', MASTER_LOG_FILE='mysql-bin.000001', MASTER_LOG_POS=  1383;
+
+# CHECK MYSQL SLAVE REPLIATION STATUS
+show slave status\G;
+
+################################## THANK YOU ##############################################
